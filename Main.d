@@ -10,40 +10,6 @@ void azzert (T) (T t)
 	}
 }
 
-struct RegexSpec
-{
-	string _s0;
-	string _s1;
-	
-	string toString () const
-	{
-		return _s0 ~ "    ^^^^^^^^$$$$$$$$    " ~ _s1;
-	}
-}
-
-auto Cached_regex (string s0, string s1 = "")
-{
-	import std.regex;
-	static if (1)
-		return regex (s0, s1);
-	else
-	{
-		static Regex ! char [RegexSpec] a;
-		
-		auto spec = RegexSpec (s0, s1);
-		
-		Regex ! char *pRegex = spec in a;
-		if (! pRegex)
-		{
-			a [spec] = regex (s0, s1);
-			pRegex = spec in a;
-		}
-		
-		azzert (pRegex);
-		return *pRegex;
-	}
-}
-
 import std.stdio: File;
 struct FileEx
 {
@@ -70,179 +36,6 @@ struct FileEx
 
 FileEx [string] aFiles;
 
-void ProcessLine (const (char) [] sLine)
-{
-	import std.stdio;
-	import std.regex;
-	import std.range;
-	import std.array;
-	//import std.algorithm;
-	import std.conv;
-	import std.container.array;
-	
-	size_t diField = 13;
-	do
-	{
-		if (sLine.empty || sLine.back != ']')
-			break;
-		
-		import std.algorithm.searching: find;
-		const (char) [] sLine1 = sLine.find ('[');
-		if (sLine1.empty)
-			break;
-		
-		sLine = sLine1;
-		sLine.popBack ();
-		diField = 0;
-	} while (0);
-	
-	writef ("sLine %s\n{\n", sLine);
-	auto rsFields = splitter (sLine, regex (r" "));
-	
-	string sKey;
-	//string sPathName;
-	ulong iLineInFile;
-	Array ! ubyte abLine; { abLine.reserve (0x400); }
-	FileEx *pFileEx;
-	
-	uint iState;
-	size_t iField = -1;
-	foreach (sField; rsFields)
-	{
-		++iField;
-		if (iField < diField) continue;
-		immutable size_t jField = iField - diField;
-		if (1) { if (jField) writef (" "); if (1) writef ("<%s>", sField); }
-		
-		if (! iState)
-		{
-			if (! jField)
-			{
-				if (! sField.empty && sField.front == '[')
-					sField.popFront ();
-				
-				//writef ("%s\n", sField);
-				
-				if (sField == "FLST")
-					iState = 100;
-				else
-				if (sField == "FLDA")
-					iState = 200;
-				else
-				if (sField == "FLFI")
-					iState = 300;
-				else
-					break;
-			}
-			else
-				azzert (0);
-		}
-		else
-		if (iState == 100)
-		{
-			if (! jField)
-				azzert (1);
-			else
-			if (jField == 1)
-			{
-				azzert (sKey.empty);
-				sKey = sField.idup;
-				azzert (sKey ! in aFiles);
-			}
-			else
-			if (jField == 2)
-			{
-				azzert (! sKey.empty);
-				
-				immutable string sPathName = sField.idup;
-				//writef ("[%s %s]\n{\n", sKey, sPathName);
-				
-				auto file = File (sPathName, "wb");
-				azzert (file.isOpen);
-				azzert (file.name == sPathName);
-				
-				auto fileex = FileEx (file);
-				aFiles [sKey] = fileex;
-			}
-			else
-			if (jField == 3)
-			{
-				azzert (! sKey.empty);
-				
-				pFileEx = sKey in aFiles;
-				azzert (pFileEx);
-				
-				auto iValue = parse ! ulong (sField);
-				pFileEx._cbExpected = iValue;
-				
-				writef ("[%s %s %8Xh]\n", sKey, pFileEx._file.name, pFileEx._cbExpected);
-			}
-			else
-				{}
-		}
-		else
-		if (iState == 200)
-		{
-			if (sKey.empty)
-				break;
-			
-			if (! jField)
-				azzert (0);
-			else
-			if (jField == 1)
-			{
-				azzert (sKey.empty);
-				sKey = sField.idup;
-				pFileEx = sKey in aFiles;
-				azzert (pFileEx);
-			}
-			else
-			if (jField == 2)
-			{
-				iLineInFile = parse ! ulong (sField);
-				//writef (" %4Xh versus %4Xh:", iLineInFile, pFileEx._iLineInFile);
-				azzert (iLineInFile == pFileEx._iLineInFile + 1);
-			}
-			else
-			if (sField == "FLDA")
-			{
-				pFileEx._file.rawWrite ((&abLine [0]) [0 .. abLine.length]);
-				//azzert (abResult.length <= abLine.length);
-				writef (".");
-				stdout.flush;
-				
-		                pFileEx._iLineInFile = iLineInFile;
-				iState = 299;
-			}
-			else
-			{
-				auto iValue = parse ! ubyte (sField, 16);
-				abLine.insertBack (iValue);
-				//writef (" %02Xh", iValue);
-				//writef (".");
-			}
-		}
-		else
-		if (iState == 299)
-			azzert (0);
-		else
-		if (iState == 300)
-		{
-			if (sKey.empty)
-				break;
-			
-			if (! jField)
-				azzert (1);
-			else
-				{}
-		}
-		else
-			azzert (0);
-	}
-	
-	writef ("}\n\n");
-}
-
 bool ProcessLine_V2 (ulong iLine, const (char) [] sLine)
 {
 	import std.format;
@@ -263,7 +56,7 @@ bool ProcessLine_V2 (ulong iLine, const (char) [] sLine)
 	// [2021-11-14]
 	static if (0)
 	{
-		const auto c0 = sLine.matchFirst (Cached_regex (r"^ \s* (.*?) \s* \[ \s* (.*) \s* \] \s* $", "ix"));
+		const auto c0 = sLine.matchFirst (regex (r"^ \s* (.*?) \s* \[ \s* (.*) \s* \] \s* $", "ix"));
 		if (c0)
 			sPayload = c0 [2];
 	}
@@ -304,7 +97,7 @@ bool ProcessLine_V2 (ulong iLine, const (char) [] sLine)
 		if (_iDebug >= 5) writef ("%s" ~ "rsFields %s.\n", sPrefix, rsFields);
 		
 		// [2021-11-14] Speed:
-		//if (const auto cPayload = sPayload.matchFirst (Cached_regex (r"^FLST \s+ (\d+) \s+ (\S+) \s+ (\d+) \s+ (.*) \s+ (\d+) \s+ (\d+) \s+ FLST$", "x")))
+		//if (const auto cPayload = sPayload.matchFirst (regex (r"^FLST \s+ (\d+) \s+ (\S+) \s+ (\d+) \s+ (.*) \s+ (\d+) \s+ (\d+) \s+ FLST$", "x")))
 		if (rsFields [0] == "FLST")
 		{
 			// [2021-11-14] Speed:
@@ -323,7 +116,7 @@ bool ProcessLine_V2 (ulong iLine, const (char) [] sLine)
 			
 			string sBaseName;
 			{
-				if (const auto cBaseName = sPathName.matchFirst (Cached_regex (r"([^/\\]+)$", "ix")))
+				if (const auto cBaseName = sPathName.matchFirst (regex (r"([^/\\]+)$", "ix")))
 					sBaseName = cBaseName [1].idup;
 				else
 					azzert (0);
@@ -360,7 +153,7 @@ bool ProcessLine_V2 (ulong iLine, const (char) [] sLine)
 		}
 		else
 		// [2021-11-14] Speed:
-		//if (const auto cPayload = sPayload.matchFirst (Cached_regex (r"^FLDA \s+ (\d+) \s+ (\d+) \s* ([0-9A-Fa-f']+) \s* FLDA$", "x")))
+		//if (const auto cPayload = sPayload.matchFirst (regex (r"^FLDA \s+ (\d+) \s+ (\d+) \s* ([0-9A-Fa-f']+) \s* FLDA$", "x")))
 		if (rsFields [0] == "FLDA")
 		{
 			// [2021-11-14] Speed:
@@ -404,7 +197,7 @@ bool ProcessLine_V2 (ulong iLine, const (char) [] sLine)
 				//auto sAllBytes = cPayload [3].idup;
 				auto sAllBytes = rsFields [3];
 				
-				//auto rsBytes = splitter (sAllBytes, Cached_regex (r"[ ']"));
+				//auto rsBytes = splitter (sAllBytes, regex (r"[ ']"));
 				import std.array: split;
 				auto rsBytes = split (sAllBytes.idup, '\'');
 				
@@ -436,7 +229,7 @@ bool ProcessLine_V2 (ulong iLine, const (char) [] sLine)
 		}
 		else
 		// [2021-11-14] Speed:
-		//if (const auto cPayload = sPayload.matchFirst (Cached_regex (r"^FLFI \s* (\d+) \s* FLFI$", "x")))
+		//if (const auto cPayload = sPayload.matchFirst (regex (r"^FLFI \s* (\d+) \s* FLFI$", "x")))
 		if (rsFields [0] == "FLFI")
 		{
 			// [2021-11-14] Speed:
@@ -514,9 +307,6 @@ int main ()
 			writef ("%16s => %s%s\n", sKey, fileex, fileex._cbObtained != fileex._cbExpected ? " - Warning !" : ".");
 		}
 	}
-	
-	//writef ("\n\n");
-	//writef ("Hello, World !\n");
 	
 	return 0;
 }
