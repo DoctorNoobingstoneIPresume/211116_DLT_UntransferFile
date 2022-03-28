@@ -67,19 +67,38 @@ bool ProcessLine_V2 (ulong iLine, const (char) [] sLine)
 		if (sLine.empty)
 			break;
 		
-		if (sLine.back != ']')
+		sPayload = [];
 		{
-			writef ("%s" ~ "Non-empty line not ending with right-bracket !\n", sPrefix);
-			break;
-		}
-		
-		sLine.popBack ();
-		
-		import std.algorithm.searching;
-		sPayload = sLine.find ('[');
-		{
-			if (! sPayload.empty)
-				sPayload.popFront ();
+			import std.algorithm.searching;
+			
+			if (sLine.back != ']')
+			{
+				//writef ("%s" ~ "Non-empty line not ending with right-bracket !\n", sPrefix);
+				//break;
+				
+				sPayload = sLine;
+				for (uint iSpace = 0; ! sPayload.empty && iSpace < 13; ++iSpace)
+				{
+					sPayload = sPayload.find (' ');
+					if (! sPayload.empty) sPayload.popFront ();
+				}
+				
+				sLine = sPayload;
+				
+				// [2022-03-28]
+				//writef ("%s" ~ "Non-empty line not ending with right-bracket !\n%s\n", sPrefix, sPayload);
+				//break;
+			}
+			else
+			{
+				sLine.popBack ();
+				
+				sPayload = sLine.find ('[');
+				{
+					if (! sPayload.empty)
+						sPayload.popFront ();
+				}
+			}
 		}
 	}
 	
@@ -95,6 +114,9 @@ bool ProcessLine_V2 (ulong iLine, const (char) [] sLine)
 		import std.array;
 		auto rsFields = sPayload.splitter (regex (r" ")).array;
 		if (_iDebug >= 5) writef ("%s" ~ "rsFields %s.\n", sPrefix, rsFields);
+		
+		if (rsFields.empty)
+			break;
 		
 		// [2021-11-14] Speed:
 		//if (const auto cPayload = sPayload.matchFirst (regex (r"^FLST \s+ (\d+) \s+ (\S+) \s+ (\d+) \s+ (.*) \s+ (\d+) \s+ (\d+) \s+ FLST$", "x")))
@@ -193,13 +215,28 @@ bool ProcessLine_V2 (ulong iLine, const (char) [] sLine)
 					ab.reserve (0x1000);
 				}
 				
-				// [2021-11-14] Speed:
-				//auto sAllBytes = cPayload [3].idup;
-				auto sAllBytes = rsFields [3];
-				
-				//auto rsBytes = splitter (sAllBytes, regex (r"[ ']"));
-				import std.array: split;
-				auto rsBytes = split (sAllBytes.idup, '\'');
+				string [] rsBytes = [];
+				{
+					import std.algorithm.searching;
+					if (! sLine.find ('\'').empty)
+					{
+						// [2021-11-14] Speed:
+						//auto sAllBytes = cPayload [3].idup;
+						auto sAllBytes = rsFields [3];
+						
+						//auto rsBytes = splitter (sAllBytes, regex (r"[ ']"));
+						import std.array: split;
+						auto tmp_rsBytes = split (sAllBytes.idup, '\'');
+						foreach (sByte; tmp_rsBytes)
+							rsBytes ~= sByte;
+					}
+					else
+					{
+						auto tmp_rsBytes = rsFields [3 .. $ - 1];
+						foreach (sByte; tmp_rsBytes)
+							rsBytes ~= sByte.idup;
+					}
+				}
 				
 				foreach (sByte; rsBytes)
 				{
